@@ -1,0 +1,4 @@
+run.sh
+*.log
+logs/*
+__pycache__/*

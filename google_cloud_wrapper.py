@@ -1,7 +1,8 @@
+"""Wrappers for backup to GCP using google cloud python package"""
 import os
 import hashlib
 import logging
-import tqdm
+from tqdm import tqdm
 
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -10,7 +11,7 @@ from google.oauth2 import service_account
 def _get_directory_size(directory_path: str) -> int:
     """Recursively calculates the size of a directory."""
     total_size = 0
-    for dirpath, dirnames, filenames in os.walk(directory_path):
+    for dirpath, _, filenames in os.walk(directory_path):
         for f in filenames:
             fp = os.path.join(dirpath, f)
             total_size += os.path.getsize(fp)
@@ -27,17 +28,18 @@ def _compute_sha256(file_path: str) -> str:
 
 
 def get_client(credential_file: str, project_id: str) -> storage.Client:
+    """Return a storage client for the specified project, and provided credentials"""
     credentials = service_account.Credentials.from_service_account_file(credential_file)
     client = storage.Client(credentials=credentials, project=project_id)
     return client
 
 
 def copy_directory_to_gcs(
-        directory_path: str,
-        bucket_name: str,
-        client: storage.Client,
-        logger: logging.Logger,
-    ):
+    directory_path: str,
+    bucket_name: str,
+    client: storage.Client,
+    logger: logging.Logger,
+):
     """Backup local directory to a GCS bucket."""
     bucket = client.get_bucket(bucket_name)
     directory_size = _get_directory_size(directory_path)
@@ -52,24 +54,24 @@ def copy_directory_to_gcs(
 
                 try:
                     local_hash = _compute_sha256(file_path)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(f"Error computing hash for {file_path}: {e}")
                     continue
 
                 blob_hash = None
                 if blob.exists():
                     blob.reload()  # Fetch blob metadata
-                    blob_hash = blob.metadata.get('sha256') if blob.metadata else None
+                    blob_hash = blob.metadata.get("sha256") if blob.metadata else None
 
                 if local_hash != blob_hash:
                     try:
-                        blob.metadata = {'sha256': local_hash}
+                        blob.metadata = {"sha256": local_hash}
                         blob.upload_from_filename(file_path)
                         file_size = os.path.getsize(file_path)
                         uploaded_size += file_size
                         pbar.update(file_size)
                         logger.info(f"Uploaded {file_path} to {blob_path}")
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-exception-caught
                         logger.error(f"Error uploading {file_path}: {e}")
                 else:
                     logger.info(f"HASH match, skip uploading {file_path}")

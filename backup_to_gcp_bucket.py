@@ -1,11 +1,9 @@
+"""Entry point for backup to Google Cloud Plotform (storage bucket)"""
 import argparse
 from datetime import datetime
 
 from logging_wrapper import setup_logging
-from google_cloud_wrapper import (
-    copy_directory_to_gcs,
-    get_client
-)
+from google_cloud_wrapper import copy_directory_to_gcs, get_client
 from gsutil_wrapper import (
     set_project_id,
     authenticate_with_service_account,
@@ -13,7 +11,7 @@ from gsutil_wrapper import (
 )
 
 
-def parse_arguments() -> argparse.Namespace:
+def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--directory",
@@ -48,8 +46,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--use-gsutil",
-        dest='use_gsutil',
-        action='store_true',
+        dest="use_gsutil",
+        action="store_true",
         default=False,
         help="Use gsutil rsync (instead of python implementation based on google packages)",
     )
@@ -57,8 +55,8 @@ def parse_arguments() -> argparse.Namespace:
     return args
 
 
-def main():
-    arguments = parse_arguments()
+def main():  # pylint: disable=missing-function-docstring
+    arguments = _parse_arguments()
     directory = arguments.directory
     project_id = arguments.project_id
     bucket_name = arguments.bucket
@@ -70,7 +68,7 @@ def main():
     logger = setup_logging(log_filename=log_filename, directory="logs")
 
     # Start the backup process
-    logger.info(f"Starting backup for: {directory}")
+    logger.info("Starting backup for: %s", directory)
     if arguments.use_gsutil:
         set_project_id(project_id, logger)
         authenticate_with_service_account(credential_file, logger)
@@ -79,7 +77,7 @@ def main():
 
     else:
         if operation != "copy":
-            logger.error(f"Operation {operation} is only supported with gsutil (right now)")
+            logger.error("Operation %s is only supported with gsutil (right now)", operation)
             return
         client = get_client(credential_file, project_id)
         start_time = datetime.now()
@@ -87,7 +85,7 @@ def main():
 
     end_time = datetime.now()
     elapsed_time = end_time - start_time
-    logger.info(f"Backup process finished. Total elapsed time: {elapsed_time}")
+    logger.info("Backup process finished. Total elapsed time: %f", elapsed_time)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
 run.sh
 *.log
+
 logs/*
 __pycache__/*
+.vscode/*

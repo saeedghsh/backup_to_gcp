@@ -1,55 +1,61 @@
+"""Wrappers for backup to GCP using gsutil"""
 import os
+from typing import List, Optional
 import logging
 import subprocess
 
 
-def _run_command(command: str, logger: logging.Logger, description: str=""):  # -> CompletedProcess[str]
+def _run_command(
+    command: List[str], logger: logging.Logger, description: str = ""
+) -> Optional[str]:
     logger.info(f"Running: {' '.join(command)}")
     try:
-        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(
+            command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
         logger.info(f"Successfully completed {description}")
         logger.info(f"Output:\n{result.stdout}")
         return result.stdout
     except subprocess.CalledProcessError as e:
-        logger.error(f"Error while executing {description}. Return code: {e.returncode}, Error: {e.stderr}")
+        logger.error(
+            f"Error while executing {description}. Return code: {e.returncode}, Error: {e.stderr}"
+        )
         return None
 
 
 def authenticate_with_service_account(key_file_path: str, logger: logging.Logger):
+    """Authenticate using gcloud and service account file key"""
     # Set GOOGLE_APPLICATION_CREDENTIALS environment variable
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_file_path
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_file_path
     logger.info(f"Set GOOGLE_APPLICATION_CREDENTIALS environment variable to {key_file_path}")
 
     # Activate the service account with gcloud
-    command = ['gcloud', 'auth', 'activate-service-account', '--key-file=' + key_file_path]
+    command = ["gcloud", "auth", "activate-service-account", "--key-file=" + key_file_path]
     _run_command(command, logger, "Activating service account with gcloud")
 
     # Reset environment variable
     del os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 
+
 def set_project_id(project_id: str, logger: logging.Logger):
+    """Set project ID in .boto file"""
     # Get the path to the .boto configuration file
     boto_path = "/home/saeed/.boto"
-    
+
     # Read the file and update the project ID
-    with open(boto_path, 'r') as f:
+    with open(boto_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    with open(boto_path, 'w') as f:
+    with open(boto_path, "w", encoding="utf-8") as f:
         for line in lines:
-            if line.startswith('project_id ='):
-                f.write(f'project_id = {project_id}\n')
+            if line.startswith("project_id ="):
+                f.write(f"project_id = {project_id}\n")
             else:
                 f.write(line)
     logger.info(f"Updated project_id in {boto_path} to {project_id}")
 
 
-def gsutil_rsync_wrapper(
-        directory: str,
-        bucket: str,
-        logger: logging.Logger,
-        operation: str,
-    ):
+def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, operation: str):
     """Use gsutil rsync to perform various operations between local directory and GCS bucket.
 
     NOTE: Requiers installation of the gsutil and authentication outside this script.
@@ -65,11 +71,9 @@ def gsutil_rsync_wrapper(
           precedence over -c, meaning checksum will be ignore when skipping existing files.
     """
     cmd = ["gsutil", "-m", "rsync"]
-    cmd.extend([
-        "-c",
-        "-r",
-        "-x", "Desktop\.ini$|FolderMarker\.ico$|^\._.*",
-    ])
+    cmd.extend(["-c"])
+    cmd.extend(["-r"])
+    cmd.extend(["-x", r"Desktop\.ini$|FolderMarker\.ico$|^\._.*"])
     if operation == "verify":
         cmd.append("-n")
     elif operation == "copy":
@@ -81,16 +85,45 @@ def gsutil_rsync_wrapper(
         return
     cmd.extend([directory, f"gs://{bucket}/"])
 
-    os.environ['GSUTIL_LOG_LEVEL'] = 'INFO'
+    os.environ["GSUTIL_LOG_LEVEL"] = "INFO"
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        if operation == "verify" and "Starting synchronization" in result.stdout:
-            logger.info("\nDifferences detected:\n")
-        logger.info(result.stdout)
+        # Using `Popen` with `while-loop` instead of `run` to read the stdout stream
+        # line-by-line and logs it immediately, allowing for real-time logging.
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        ) as process:
+            while True:
+                if process.stdout:
+                    output = process.stdout.readline()
+                else:
+                    raise ValueError("No standard output to read from!")
+                if output:
+                    logger.info(output.strip())
+                # Check for termination
+                return_code = process.poll()
+                if return_code is not None:
+                    for output in process.stdout.readlines():
+                        logger.info(output.strip())
+                    break
+        if process.returncode != 0:
+            logger.error(f"Error executing gsutil rsync with return code {process.returncode}")
+            if process.stdout:
+                output = process.stdout.readline()
+            else:
+                raise ValueError("No standard output to read from!")
+            for line in output:
+                logger.error(line.strip())
+    except FileNotFoundError:
+        logger.error("Command not found")
+    except OSError as e:
+        logger.error(f"OS error occurred: {e}")
+    except ValueError:
+        logger.error("Invalid arguments provided to Popen")
 
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error executing gsutil rsync: {e}")
-        logger.error(e.stderr)
-
-    del os.environ['GSUTIL_LOG_LEVEL']
+    del os.environ["GSUTIL_LOG_LEVEL"]

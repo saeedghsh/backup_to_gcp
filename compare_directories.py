@@ -1,3 +1,4 @@
+"""A Simple directoty comparison script"""
 import filecmp
 import argparse
 import logging
@@ -5,7 +6,7 @@ import logging
 from logging_wrapper import setup_logging
 
 
-def ignore_file(filename: str) -> bool:
+def _ignore_file(filename: str) -> bool:
     if filename in ["Desktop.ini", "FolderMarker.ico"]:
         return True
     if filename[:2] != "._":
@@ -13,7 +14,7 @@ def ignore_file(filename: str) -> bool:
     return False
 
 
-def compare_directories(dir_l: str, dir_r: str, logger: logging.Logger):
+def _compare_directories(dir_l: str, dir_r: str, logger: logging.Logger):
     dcmp = filecmp.dircmp(dir_l, dir_r)
 
     left_only = dcmp.left_only
@@ -24,25 +25,25 @@ def compare_directories(dir_l: str, dir_r: str, logger: logging.Logger):
     # common_dirs = dcmp.common_dirs
 
     # remove macos files
-    left_only = [f for f in left_only if not ignore_file(f)]
-    right_only = [f for f in right_only if not ignore_file(f)]
-    diff_files = [f for f in left_only if not ignore_file(f)]
+    left_only = [f for f in left_only if not _ignore_file(f)]
+    right_only = [f for f in right_only if not _ignore_file(f)]
+    diff_files = [f for f in left_only if not _ignore_file(f)]
 
     if len(left_only) > 0:
         logger.info("Files/Dirs only in %s: %s", dir_l, left_only)
     if len(right_only) > 0:
         logger.info("Files/Dirs only in %s: %s", dir_r, right_only)
     if len(diff_files) > 0:
-        logger.info("Files that differ between %s and %s: %s", dir_l, dir_r, diff_files)    
+        logger.info("Files that differ between %s and %s: %s", dir_l, dir_r, diff_files)
 
     # Recursively compare subdirectories
     for sub_dir, sub_dcmp in dcmp.subdirs.items():
         print("\nComparing sub-directory:", sub_dir)
         logger.info("Comparing sub-directory: %s", sub_dir)
-        compare_directories(sub_dcmp.left, sub_dcmp.right, logger)
+        _compare_directories(sub_dcmp.left, sub_dcmp.right, logger)
 
 
-def parse_arguments():
+def _parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--d1",
@@ -60,13 +61,13 @@ def parse_arguments():
     return args
 
 
-def main():
-    arguments = parse_arguments()
+def main():  # pylint: disable=missing-function-docstring
+    arguments = _parse_arguments()
     d1 = arguments.d1
     d2 = arguments.d2
     logger = setup_logging(log_filename="directory_comparison.log", directory="logs")
     logger.info("Comparing\n%s\n%s\n", d1, d2)
-    compare_directories(d1, d2, logger)
+    _compare_directories(d1, d2, logger)
 
 
 if __name__ == "__main__":

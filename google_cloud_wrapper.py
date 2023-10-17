@@ -4,7 +4,6 @@ import logging
 import tqdm
 
 from google.cloud import storage
-# from google.oauth2 import service_account
 
 
 def get_directory_size(directory_path: str) -> int:

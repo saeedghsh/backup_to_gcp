@@ -4,9 +4,10 @@ import logging
 import tqdm
 
 from google.cloud import storage
+from google.oauth2 import service_account
 
 
-def get_directory_size(directory_path: str) -> int:
+def _get_directory_size(directory_path: str) -> int:
     """Recursively calculates the size of a directory."""
     total_size = 0
     for dirpath, dirnames, filenames in os.walk(directory_path):
@@ -16,13 +17,19 @@ def get_directory_size(directory_path: str) -> int:
     return total_size
 
 
-def compute_sha256(file_path: str) -> str:
+def _compute_sha256(file_path: str) -> str:
     """Compute SHA-256 hash of a file."""
     sha256_hash = hashlib.sha256()
     with open(file_path, "rb") as f:
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
+
+def get_client(credential_file: str, project_id: str) -> storage.Client:
+    credentials = service_account.Credentials.from_service_account_file(credential_file)
+    client = storage.Client(credentials=credentials, project=project_id)
+    return client
 
 
 def copy_directory_to_gcs(
@@ -33,7 +40,7 @@ def copy_directory_to_gcs(
     ):
     """Backup local directory to a GCS bucket."""
     bucket = client.get_bucket(bucket_name)
-    directory_size = get_directory_size(directory_path)
+    directory_size = _get_directory_size(directory_path)
     uploaded_size = 0
 
     with tqdm(total=directory_size, unit="B", unit_scale=True, unit_divisor=1024) as pbar:
@@ -44,7 +51,7 @@ def copy_directory_to_gcs(
                 blob = bucket.blob(blob_path)
 
                 try:
-                    local_hash = compute_sha256(file_path)
+                    local_hash = _compute_sha256(file_path)
                 except Exception as e:
                     logger.error(f"Error computing hash for {file_path}: {e}")
                     continue

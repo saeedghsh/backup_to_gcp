@@ -1,11 +1,11 @@
 import argparse
 from datetime import datetime
 
-from google.cloud import storage
-from google.oauth2 import service_account
-
 from logging_wrapper import setup_logging
-from google_cloud_wrapper import copy_directory_to_gcs
+from google_cloud_wrapper import (
+    copy_directory_to_gcs,
+    get_client
+)
 from gsutil_wrapper import (
     set_project_id,
     authenticate_with_service_account,
@@ -78,17 +78,15 @@ def main():
         gsutil_rsync_wrapper(directory, bucket_name, logger, operation)
 
     else:
-        credentials = service_account.Credentials.from_service_account_file(credential_file)
-        client = storage.Client(credentials=credentials, project=project_id)
-        if operation == "copy":
-            start_time = datetime.now()
-            copy_directory_to_gcs(directory, bucket_name, client, logger)
-        else:
+        if operation != "copy":
             logger.error(f"Operation {operation} is only supported with gsutil (right now)")
             return
+        client = get_client(credential_file, project_id)
+        start_time = datetime.now()
+        copy_directory_to_gcs(directory, bucket_name, client, logger)
 
     end_time = datetime.now()
-    elapsed_time = end_time - start_time    
+    elapsed_time = end_time - start_time
     logger.info(f"Backup process finished. Total elapsed time: {elapsed_time}")
 
 

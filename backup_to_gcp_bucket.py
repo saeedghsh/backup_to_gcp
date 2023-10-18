@@ -64,7 +64,7 @@ def main():  # pylint: disable=missing-function-docstring
     operation = arguments.operation
 
     # Setup logger
-    log_filename = f"backup_log_{bucket_name}.log"
+    log_filename = f"backup_log_operation_{operation}_{bucket_name}.log"
     logger = setup_logging(log_filename=log_filename, directory="logs")
 
     # Start the backup process

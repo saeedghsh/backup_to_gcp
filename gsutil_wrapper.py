@@ -3,6 +3,7 @@ import os
 from typing import List, Optional
 import logging
 import subprocess
+import select
 
 
 def _run_command(
@@ -88,37 +89,30 @@ def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, op
     os.environ["GSUTIL_LOG_LEVEL"] = "INFO"
 
     try:
-        # Using `Popen` with `while-loop` instead of `run` to read the stdout stream
-        # line-by-line and logs it immediately, allowing for real-time logging.
         with subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True
         ) as process:
             while True:
-                if process.stdout:
-                    output = process.stdout.readline()
-                else:
-                    raise ValueError("No standard output to read from!")
-                if output:
-                    logger.info(output.strip())
+                rlist, _, _ = select.select([process.stdout, process.stderr], [], [])
+                for stream in rlist:
+                    line = stream.readline()
+                    if line:
+                        if stream is process.stdout:
+                            logger.info(line.strip())
+                        else:
+                            logger.warning(line.strip())  # Use WARNING for stderr
+
                 # Check for termination
-                return_code = process.poll()
-                if return_code is not None:
-                    for output in process.stdout.readlines():
-                        logger.info(output.strip())
+                if process.poll() is not None:
+                    for line in process.stdout:
+                        logger.info(line.strip())
+                    for line in process.stderr:
+                        logger.warning(line.strip())  # Use WARNING for stderr
                     break
+
         if process.returncode != 0:
             logger.error(f"Error executing gsutil rsync with return code {process.returncode}")
-            if process.stdout:
-                output = process.stdout.readline()
-            else:
-                raise ValueError("No standard output to read from!")
-            for line in output:
-                logger.error(line.strip())
+
     except FileNotFoundError:
         logger.error("Command not found")
     except OSError as e:

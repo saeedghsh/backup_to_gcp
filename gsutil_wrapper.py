@@ -56,7 +56,7 @@ def set_project_id(project_id: str, logger: logging.Logger):
     logger.info(f"Updated project_id in {boto_path} to {project_id}")
 
 
-def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, operation: str):
+def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, operation: str, dry_run: bool):
     """Use gsutil rsync to perform various operations between local directory and GCS bucket.
 
     NOTE: Requiers installation of the gsutil and authentication outside this script.
@@ -75,9 +75,9 @@ def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, op
     cmd.extend(["-c"])
     cmd.extend(["-r"])
     cmd.extend(["-x", r"Desktop\.ini$|FolderMarker\.ico$|^\._.*"])
-    if operation == "verify":
+    if dry_run:
         cmd.append("-n")
-    elif operation == "copy":
+    if operation == "copy":
         pass
     elif operation == "sync":
         cmd.append("-d")
@@ -88,6 +88,10 @@ def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, op
 
     os.environ["GSUTIL_LOG_LEVEL"] = "INFO"
 
+    to_upload = []
+    to_set_mtime = []
+    to_delete = []
+
     try:
         with subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1, universal_newlines=True
@@ -97,10 +101,19 @@ def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, op
                 for stream in rlist:
                     line = stream.readline()
                     if line:
+                        # Use INFO for stdout and WARNING for stderr
                         if stream is process.stdout:
                             logger.info(line.strip())
                         else:
-                            logger.warning(line.strip())  # Use WARNING for stderr
+                            logger.warning(line.strip())
+
+                        # collect data for summary
+                        if "Would upload" in line:
+                            to_upload.append(line.strip())
+                        elif "Would set mtime" in line:
+                            to_set_mtime.append(line.strip())
+                        elif "Would remove" in line:
+                            to_delete.append(line.strip())
 
                 # Check for termination
                 if process.poll() is not None:
@@ -109,6 +122,16 @@ def gsutil_rsync_wrapper(directory: str, bucket: str, logger: logging.Logger, op
                     for line in process.stderr:
                         logger.warning(line.strip())  # Use WARNING for stderr
                     break
+
+        # Print summary at the end
+        logger.info("*" * 80)
+        logger.info("Summary of changes")
+        logger.info("To upload:")
+        for line in to_upload:
+            logger.info(line)
+        logger.info("To Delete:")
+        for line in to_delete:
+            logger.info(line)
 
         if process.returncode != 0:
             logger.error(f"Error executing gsutil rsync with return code {process.returncode}")

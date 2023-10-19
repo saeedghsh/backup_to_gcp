@@ -40,7 +40,7 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--operation",
         type=str,
-        choices=["verify", "copy", "sync"],
+        choices=["copy", "sync"],
         default="sync",
         help="Operation mode",
     )
@@ -50,6 +50,13 @@ def _parse_arguments() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Use gsutil rsync (instead of python implementation based on google packages)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=False,
+        help="Just do dry run, don't actually upload/delete",
     )
     args = parser.parse_args()
     return args
@@ -62,22 +69,30 @@ def main():  # pylint: disable=missing-function-docstring
     bucket_name = arguments.bucket
     credential_file = arguments.credential_file
     operation = arguments.operation
+    use_gsutil = arguments.use_gsutil
+    dry_run = arguments.dry_run
 
     # Setup logger
-    log_filename = f"backup_log_operation_{operation}_{bucket_name}.log"
+
+    log_filename = f"backup_log_operation_{operation}"
+    log_filename += "_dryrun" if dry_run else ""
+    log_filename += f"_{bucket_name}.log"
     logger = setup_logging(log_filename=log_filename, directory="logs")
 
     # Start the backup process
     logger.info("Starting backup for: %s", directory)
-    if arguments.use_gsutil:
+    if use_gsutil:
         set_project_id(project_id, logger)
         authenticate_with_service_account(credential_file, logger)
         start_time = datetime.now()
-        gsutil_rsync_wrapper(directory, bucket_name, logger, operation)
+        gsutil_rsync_wrapper(directory, bucket_name, logger, operation, dry_run)
 
     else:
         if operation != "copy":
             logger.error("Operation %s is only supported with gsutil (right now)", operation)
+            return
+        if dry_run:
+            logger.error("Dry run is only supported with gsutil (right now)")
             return
         client = get_client(credential_file, project_id)
         start_time = datetime.now()
@@ -85,7 +100,7 @@ def main():  # pylint: disable=missing-function-docstring
 
     end_time = datetime.now()
     elapsed_time = end_time - start_time
-    logger.info("Backup process finished. Total elapsed time: %f", elapsed_time)
+    logger.info("Backup process finished. Total elapsed time: %f", elapsed_time.total_seconds())
 
 
 if __name__ == "__main__":

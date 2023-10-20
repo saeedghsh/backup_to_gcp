@@ -2,8 +2,8 @@
 
 Entry points:
 ```bash
-python3 backup_to_gcp_bucket.py --help
-python3 compare_directories.py --help
+python3 src/backup_to_gcp_bucket.py --help
+python3 src/compare_directories.py --help
 ```
 
 # Laundy list

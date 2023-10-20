@@ -2,9 +2,9 @@
 import argparse
 from datetime import datetime
 
-from logging_wrapper import setup_logging
-from google_cloud_wrapper import copy_directory_to_gcs, get_client
-from gsutil_wrapper import (
+from utilities.logging_wrapper import setup_logging
+from utilities.google_cloud_wrapper import copy_directory_to_gcs, get_client
+from utilities.gsutil_wrapper import (
     set_project_id,
     authenticate_with_service_account,
     gsutil_rsync_wrapper,
@@ -73,7 +73,6 @@ def main():  # pylint: disable=missing-function-docstring
     dry_run = arguments.dry_run
 
     # Setup logger
-
     log_filename = f"backup_log_operation_{operation}"
     log_filename += "_dryrun" if dry_run else ""
     log_filename += f"_{bucket_name}.log"

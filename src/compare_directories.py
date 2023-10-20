@@ -3,7 +3,7 @@ import filecmp
 import argparse
 import logging
 
-from logging_wrapper import setup_logging
+from utilities.logging_wrapper import setup_logging
 
 
 def _ignore_file(filename: str) -> bool:

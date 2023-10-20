@@ -6,6 +6,11 @@ python3 src/backup_to_gcp_bucket.py --help
 python3 src/compare_directories.py --help
 ```
 
+Tests:
+```bash
+PYTHONPATH=. poetry run pytest
+```
+
 # Laundy list
 * [ ] schedule recurring backup.
 * [x] modify the script, so that the local changes (e.g. moved or renamed directories) would be mirrored on the cloud. This effectively requires removing remote files that are no longer available locally.

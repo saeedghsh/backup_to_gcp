@@ -3,5 +3,5 @@ run.sh
 poetry.lock
 
 logs/*
-__pycache__/*
+*__pycache__*
 .vscode/*

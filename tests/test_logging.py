@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from utilities.logging_wrapper import setup_logging
 
+
 def test_logging_setup(tmpdir):
     log_filename = 'test.log'
     directory = str(tmpdir)
